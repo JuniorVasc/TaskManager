@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gestor de Tarefas</title>
+  <style>
+    :root{
+      --bg:#0f172a;         /* slate-900 */
+      --panel:#111827;      /* gray-900 */
+      --muted:#94a3b8;      /* slate-400 */
+      --text:#e5e7eb;       /* gray-200 */
+      --accent:#22c55e;     /* green-500 */
+      --accent-2:#3b82f6;   /* blue-500 */
+      --warn:#f59e0b;       /* amber-500 */
+      --danger:#ef4444;     /* red-500 */
+      --border:#1f2937;     /* gray-800 */
+      --badge:#0b1324;
+    }
+    *{ box-sizing:border-box; }
+    body{
+      margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial;
+      background:linear-gradient(180deg,#0b1220 0%,#0f172a 100%);
+      color:var(--text);
+    }
+    .container{
+      max-width:1100px; margin:40px auto; padding:0 16px;
+    }
+    header{
+      display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px;
+      margin-bottom:18px;
+    }
+    h1{ font-size:26px; margin:0; letter-spacing:.3px; }
+    #clock{
+      font-variant-numeric:tabular-nums; background:var(--panel); border:1px solid var(--border);
+      padding:8px 12px; border-radius:8px; color:#d1fae5;
+      box-shadow:0 6px 20px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.03);
+    }
+    .panel{
+      background:rgba(2,6,23,.6); border:1px solid var(--border);
+      border-radius:12px; padding:14px; box-shadow:0 8px 30px rgba(0,0,0,.35);
+      backdrop-filter: blur(6px);
+    }
+    .form-row{
+      display:grid; grid-template-columns: 1.2fr 0.6fr auto; gap:10px;
+    }
+    input[type="text"], input[type="date"], input[type="search"]{
+      width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border);
+      background:var(--panel); color:var(--text);
+      outline:none; transition:.15s border-color ease;
+    }
+    input::placeholder{ color:#8a93a7; }
+    input:focus{ border-color:#334155; }
+    .btn{
+      padding:10px 12px; border:none; border-radius:10px; cursor:pointer;
+      color:white; background:#334155; transition:.15s transform ease, .15s opacity ease;
+      border:1px solid rgba(255,255,255,.05);
+    }
+    .btn:hover{ transform: translateY(-1px); opacity:.95; }
+    .btn:disabled{ opacity:.5; cursor:not-allowed; transform:none; }
+    .btn-primary{ background:var(--accent-2); }
+    .btn-start{ background:var(--warn); color:#111; }
+    .btn-finish{ background:var(--accent); color:#0a0a0a; }
+    .btn-edit{ background:#64748b; }
+    .btn-danger{ background:var(--danger); }
+    .toolbar{
+      display:flex; gap:10px; align-items:center; margin-top:12px; flex-wrap:wrap;
+    }
+    .badge{
+      display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:999px;
+      font-size:12px; background:var(--badge); border:1px solid var(--border);
+    }
+    .badge.pending{ color:#fde68a; border-color:#78611655; }
+    .badge.progress{ color:#93c5fd; border-color:#3269d155; }
+    .badge.done{ color:#86efac; border-color:#1b6f3755; }
+    table{
+      width:100%; border-collapse:separate; border-spacing:0 10px; margin-top:12px;
+    }
+    thead th{
+      text-align:left; font-weight:600; color:#cbd5e1; font-size:14px; padding:8px 10px;
+    }
+    tbody tr{
+      background:rgba(2,6,23,.65); border:1px solid var(--border);
+      box-shadow:0 10px 26px rgba(0,0,0,.35); border-radius:12px;
+    }
+    tbody td{
+      padding:12px 10px; vertical-align:middle; border-top:1px solid var(--border);
+      border-bottom:1px solid var(--border);
+    }
+    tbody tr td:first-child{ border-left:1px solid var(--border); border-radius:12px 0 0 12px; }
+    tbody tr td:last-child{ border-right:1px solid var(--border); border-radius:0 12px 12px 0; }
+    .cell-actions{ display:flex; gap:8px; flex-wrap:wrap; }
+    .muted{ color:var(--muted); }
+    .empty{
+      text-align:center; color:#9aa3b2; padding:22px 10px;
+    }
+    .inline-edit{
+      display:flex; gap:8px; align-items:center; flex-wrap:wrap;
+    }
+    /* Rodapé */
+    .footer{
+      max-width:1100px; margin:24px auto 40px; padding:8px 16px;
+      color:#94a3b8; text-align:center; border-top:1px solid var(--border);
+    }
+    .footer strong{ color:#e5e7eb; }
+
+    /* Área de impressão (invisível no ecrã, visível ao imprimir) */
+    #printArea{ display:none; background:white; color:#000; }
+    #printArea h1, #printArea h2, #printArea h3{ color:#000; margin:0 0 6px; }
+    #printArea .meta{ color:#222; margin-bottom:10px; }
+    #printArea table{ width:100%; border-collapse:collapse; }
+    #printArea th, #printArea td{ border:1px solid #444; padding:6px 8px; font-size:12px; }
+    #printArea tfoot td{ font-weight:700; }
+
+    @media (max-width:800px){
+      .form-row{ grid-template-columns: 1fr 1fr; }
+      .form-row .btn-primary{ grid-column:1 / -1; }
+      thead{ display:none; }
+      tbody tr{ display:grid; grid-template-columns:1fr; }
+      tbody td{ border:none !important; }
+      .cell-actions{ margin-top:8px; }
+    }
+
+    /* Regras de impressão: mostra só o printArea */
+    @media print{
+      :root{ color-scheme:light; }
+      body{ background:white !important; }
+      .container, header, section, .footer{ display:none !important; }
+      #printArea{ display:block !important; padding:10mm 12mm; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Gestor de Tarefas</h1>
+      <div id="clock" aria-live="polite">--:--:--</div>
+    </header>
+
+    <!-- Formulário de criação -->
+    <section class="panel" aria-labelledby="sec-criar">
+      <h2 id="sec-criar" class="muted" style="margin:0 0 10px 2px; font-size:14px;">Adicionar nova tarefa</h2>
+      <div class="form-row">
+        <input id="taskTitle" type="text" placeholder="Descrição da tarefa" />
+        <input id="taskDate" type="date" />
+        <button class="btn btn-primary" id="addBtn">Adicionar</button>
+      </div>
+      <div class="toolbar">
+        <input id="searchInput" type="search" placeholder="Pesquisar por tarefa, dia ou status…" />
+        <span class="badge" title="Total de tarefas">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10 17l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+          <span id="statsTotal">0</span>
+        </span>
+        <button class="btn" id="clearAllBtn" title="Apagar todas as tarefas">Limpar tudo</button>
+
+        <!-- 🔽 Controlo de impressão -->
+        <input id="printDate" type="date" title="Dia do relatório" />
+        <button class="btn" id="printBtn" title="Imprimir tarefas concluídas no dia seleccionado">
+          Imprimir concluídas do dia
+        </button>
+      </div>
+    </section>
+
+    <!-- Tabela -->
+    <section class="panel" style="margin-top:16px" aria-labelledby="sec-lista">
+      <h2 id="sec-lista" class="muted" style="margin:0 0 8px 2px; font-size:14px;">Lista de tarefas</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Tarefa</th>
+              <th>Dia</th>
+              <th>Status</th>
+              <th>Tempo levado</th>
+              <th>Início</th>
+              <th>Término</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody id="tbody">
+            <!-- Linhas geradas por JS -->
+          </tbody>
+        </table>
+        <div id="emptyState" class="empty">Ainda não há tarefas. Adicione a primeira! 🚀</div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Rodapé pedido -->
+  <footer class="footer">
+    Design by <strong>Arménio Vasco</strong>
+  </footer>
+
+  <!-- Área que só aparece no papel -->
+  <div id="printArea" aria-hidden="true"></div>
+
+  <script>
+    // ======= Utilidades de formato =======
+    const pad = n => String(n).padStart(2,'0');
+
+    function formatDateISO(d){ // yyyy-mm-dd (por origem d pode ser Date ou string)
+      const dt = new Date(d);
+      return dt.getFullYear() + '-' + pad(dt.getMonth()+1) + '-' + pad(dt.getDate());
+    }
+    function formatDateBR(d){ // dd/mm/yyyy
+      const dt = new Date(d);
+      return pad(dt.getDate()) + '/' + pad(dt.getMonth()+1) + '/' + dt.getFullYear();
+    }
+    function formatTime(d){ // HH:MM:SS
+      const dt = new Date(d);
+      return `${pad(dt.getHours())}:${pad(dt.getMinutes())}:${pad(dt.getSeconds())}`;
+    }
+    function formatDuration(ms){
+      if (ms == null || isNaN(ms) || ms < 0) return '—';
+      const sec = Math.floor(ms/1000);
+      const h = Math.floor(sec/3600);
+      const m = Math.floor((sec%3600)/60);
+      const s = sec%60;
+      return `${pad(h)}:${pad(m)}:${pad(s)}`;
+    }
+    // Data local yyyy-mm-dd para comparar dias pelo fuso local
+    const toLocalYMD = (d) => {
+      const dt = new Date(d);
+      return dt.getFullYear() + '-' + pad(dt.getMonth()+1) + '-' + pad(dt.getDate());
+    };
+
+    // ======= Estado e storage =======
+    const STORAGE_KEY = 'task_manager_v1';
+    /** @type {Array<{id:string,titulo:string,dia:string,status:'Pendente'|'Em Progresso'|'Concluído', inicio:string|null, termino:string|null}>} */
+    let tasks = [];
+
+    function save(){
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+      updateStats();
+    }
+    function load(){
+      try{
+        const raw = localStorage.getItem(STORAGE_KEY);
+        tasks = raw ? JSON.parse(raw) : [];
+      }catch(e){
+        console.warn('Erro ao carregar storage', e);
+        tasks = [];
+      }
+      updateStats();
+    }
+
+    // ======= Relógio =======
+    function tickClock(){
+      const now = new Date();
+      document.getElementById('clock').textContent = formatTime(now);
+    }
+    setInterval(tickClock, 1000);
+    tickClock();
+
+    // ======= CRUD =======
+    function addTask(titulo, diaISO){
+      const id = String(Date.now()) + Math.random().toString(16).slice(2);
+      tasks.push({
+        id, titulo: titulo.trim(), dia: diaISO, status:'Pendente', inicio:null, termino:null
+      });
+      save(); render();
+    }
+    function startTask(id){
+      const t = tasks.find(x=>x.id===id);
+      if(!t || t.status!=='Pendente') return;
+      t.status = 'Em Progresso';
+      t.inicio = new Date().toISOString();
+      t.termino = null;
+      save(); render();
+    }
+    function finishTask(id){
+      const t = tasks.find(x=>x.id===id);
+      if(!t || t.status!=='Em Progresso') return;
+      t.status = 'Concluído';
+      t.termino = new Date().toISOString();
+      save(); render();
+    }
+    function removeTask(id){
+      tasks = tasks.filter(x=>x.id!==id);
+      save(); render();
+    }
+    function updateTask(id, newTitle, newDiaISO){
+      const t = tasks.find(x=>x.id===id);
+      if(!t) return;
+      t.titulo = newTitle.trim();
+      t.dia = newDiaISO;
+      save(); render();
+    }
+
+    // ======= Pesquisa =======
+    let currentQuery = '';
+    function setQuery(q){
+      currentQuery = q.trim().toLowerCase();
+      render();
+    }
+    function matchesQuery(t){
+      if(!currentQuery) return true;
+      const parts = [
+        t.titulo.toLowerCase(),
+        t.status.toLowerCase(),
+        t.dia.toLowerCase(),
+        formatDateBR(t.dia)
+      ];
+      return parts.some(p => p.includes(currentQuery));
+    }
+
+    // ======= Renderização =======
+    const tbody = document.getElementById('tbody');
+    const emptyState = document.getElementById('emptyState');
+
+    function updateStats(){
+      document.getElementById('statsTotal').textContent = tasks.length;
+    }
+
+    function render(){
+      tbody.innerHTML = '';
+      const filtered = tasks.filter(matchesQuery);
+
+      emptyState.style.display = filtered.length===0 ? 'block' : 'none';
+
+      filtered.forEach(task=>{
+        const tr = document.createElement('tr');
+
+        // Tarefa
+        const tdTitle = document.createElement('td');
+        tdTitle.textContent = task.titulo;
+        tr.appendChild(tdTitle);
+
+        // Dia
+        const tdDay = document.createElement('td');
+        tdDay.textContent = formatDateBR(task.dia);
+        tr.appendChild(tdDay);
+
+        // Status
+        const tdStatus = document.createElement('td');
+        const badge = document.createElement('span');
+        badge.className = 'badge ' + (task.status==='Pendente' ? 'pending' :
+                                      task.status==='Em Progresso' ? 'progress' : 'done');
+        badge.textContent = task.status;
+        tdStatus.appendChild(badge);
+        tr.appendChild(tdStatus);
+
+        // Tempo levado
+        const tdTempo = document.createElement('td');
+        tdTempo.dataset.role = 'tempo';
+        tdTempo.dataset.id = task.id;
+        const elapsed = calcElapsed(task);
+        tdTempo.textContent = formatDuration(elapsed);
+        tr.appendChild(tdTempo);
+
+        // Início
+        const tdInicio = document.createElement('td');
+        tdInicio.textContent = task.inicio ? formatTime(task.inicio) : '—';
+        tr.appendChild(tdInicio);
+
+        // Término
+        const tdTermino = document.createElement('td');
+        tdTermino.textContent = task.termino ? formatTime(task.termino) : '—';
+        tr.appendChild(tdTermino);
+
+        // Ações
+        const tdActions = document.createElement('td');
+        tdActions.className = 'cell-actions';
+
+        if(task.status==='Pendente'){
+          const btnStart = mkBtn('Iniciar','btn-start', ()=>startTask(task.id));
+          const btnEdit  = mkBtn('Editar','btn-edit', ()=>enterEditMode(tr, task));
+          const btnDel   = mkBtn('Remover','btn-danger', ()=>confirmRemove(task.id));
+          tdActions.append(btnStart, btnEdit, btnDel);
+        }else if(task.status==='Em Progresso'){
+          const btnFinish = mkBtn('Terminar','btn-finish', ()=>finishTask(task.id));
+          const btnDel    = mkBtn('Remover','btn-danger', ()=>confirmRemove(task.id));
+          const btnEdit   = mkBtn('Editar','', null, true);
+          btnEdit.title = 'Disponível quando não estiver em progresso';
+          tdActions.append(btnFinish, btnEdit, btnDel);
+        }else{ // Concluído
+          const btnEdit  = mkBtn('Editar','btn-edit', ()=>enterEditMode(tr, task));
+          const btnDel   = mkBtn('Remover','btn-danger', ()=>confirmRemove(task.id));
+          tdActions.append(btnEdit, btnDel);
+        }
+        tr.appendChild(tdActions);
+
+        tbody.appendChild(tr);
+      });
+    }
+
+    function mkBtn(label, classes='', onClick=null, disabled=false){
+      const b = document.createElement('button');
+      b.className = 'btn ' + classes;
+      b.textContent = label;
+      if(onClick) b.addEventListener('click', onClick);
+      b.disabled = !!disabled;
+      return b;
+    }
+
+    function calcElapsed(t){
+      if(!t.inicio) return null;
+      const start = new Date(t.inicio).getTime();
+      if(t.status==='Em Progresso'){
+        return Date.now() - start;
+      }
+      if(t.status==='Concluído' && t.termino){
+        const end = new Date(t.termino).getTime();
+        return Math.max(0, end - start);
+      }
+      return null;
+    }
+
+    // Atualizar timers das tarefas em progresso a cada segundo
+    setInterval(()=>{
+      const rows = tbody.querySelectorAll('td[data-role="tempo"]');
+      rows.forEach(cell=>{
+        const id = cell.dataset.id;
+        const t = tasks.find(x=>x.id===id);
+        if(t && t.status==='Em Progresso'){
+          cell.textContent = formatDuration(calcElapsed(t));
+        }
+      });
+    }, 1000);
+
+    // ======= Edição inline =======
+    function enterEditMode(tr, task){
+      const [tdTitle, tdDay] = tr.children;
+
+      const inputTitle = document.createElement('input');
+      inputTitle.type = 'text';
+      inputTitle.value = task.titulo;
+      inputTitle.placeholder = 'Descrição da tarefa';
+      inputTitle.style.minWidth = '220px';
+
+      const inputDate = document.createElement('input');
+      inputDate.type = 'date';
+      inputDate.value = formatDateISO(task.dia);
+
+      const tdAct = tr.children[6];
+
+      tdTitle.innerHTML = '';
+      tdTitle.appendChild(inputTitle);
+      tdDay.innerHTML = '';
+      tdDay.appendChild(inputDate);
+
+      tdAct.innerHTML = '';
+      const btnSave = mkBtn('Guardar','btn-primary', ()=>{
+        const newTitle = inputTitle.value;
+        const newDate = inputDate.value || formatDateISO(new Date());
+        if(!newTitle.trim()){
+          alert('A descrição da tarefa é obrigatória.');
+          return;
+        }
+        updateTask(task.id, newTitle, newDate);
+      });
+      const btnCancel = mkBtn('Cancelar','', ()=>render());
+      tdAct.append(btnSave, btnCancel);
+    }
+
+    // ======= Confirmações =======
+    function confirmRemove(id){
+      if(confirm('Tem a certeza que deseja remover esta tarefa?')){
+        removeTask(id);
+      }
+    }
+
+    // ======= Impressão: tarefas concluídas no dia =======
+    function tasksConcluidasNoDia(ymd){
+      return tasks.filter(t =>
+        t.status === 'Concluído' &&
+        t.termino &&
+        toLocalYMD(t.termino) === ymd
+      );
+    }
+
+    function buildPrintHTML(ymd, lista){
+      const dataBR = formatDateBR(ymd);
+      let totalMs = 0;
+      const rows = lista.map(t=>{
+        const ms = Math.max(0, new Date(t.termino) - new Date(t.inicio));
+        totalMs += ms;
+        return `
+          <tr>
+            <td>${escapeHtml(t.titulo)}</td>
+            <td style="text-align:center">${formatDateBR(t.dia)}</td>
+            <td style="text-align:center">${t.inicio ? formatTime(t.inicio) : ''}</td>
+            <td style="text-align:center">${t.termino ? formatTime(t.termino) : ''}</td>
+            <td style="text-align:center">${formatDuration(ms)}</td>
+          </tr>
+        `;
+      }).join('');
+
+      return `
+        <div>
+          <h1>Relatório de Tarefas Concluídas</h1>
+          <div class="meta">Dia: <strong>${dataBR}</strong> • Total de tarefas: <strong>${lista.length}</strong> • Tempo total: <strong>${formatDuration(totalMs)}</strong></div>
+          <table>
+            <thead>
+              <tr>
+                <th style="text-align:left">Tarefa</th>
+                <th>Dia</th>
+                <th>Início</th>
+                <th>Término</th>
+                <th>Tempo levado</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows || `<tr><td colspan="5" style="text-align:center">Nenhuma tarefa concluída neste dia.</td></tr>`}
+            </tbody>
+            ${rows ? `<tfoot><tr><td colspan="4" style="text-align:right">Total</td><td style="text-align:center">${formatDuration(totalMs)}</td></tr></tfoot>` : ''}
+          </table>
+          <div style="margin-top:10px; font-size:11px; color:#333">
+            Gerado em ${formatDateBR(new Date())} às ${formatTime(new Date())}.
+          </div>
+        </div>
+      `;
+    }
+
+    function escapeHtml(str){
+      return String(str).replace(/[&<>"']/g, s => ({
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+      }[s]));
+    }
+
+    function handlePrint(){
+      const dateInput = document.getElementById('printDate');
+      const ymd = dateInput.value || formatDateISO(new Date());
+      const lista = tasksConcluidasNoDia(ymd);
+
+      if(lista.length === 0){
+        alert('Não há tarefas concluídas no dia selecionado.');
+        return;
+      }
+
+      const area = document.getElementById('printArea');
+      area.innerHTML = buildPrintHTML(ymd, lista);
+      window.print();
+      // (opcional) limpar depois: area.innerHTML = '';
+    }
+
+    // ======= Ligações UI =======
+    document.getElementById('addBtn').addEventListener('click', ()=>{
+      const titleEl = document.getElementById('taskTitle');
+      const dateEl  = document.getElementById('taskDate');
+      const title = titleEl.value;
+      const dia = dateEl.value || formatDateISO(new Date());
+      if(!title.trim()){
+        alert('Escreva a descrição da tarefa.');
+        titleEl.focus();
+        return;
+      }
+      addTask(title, dia);
+      titleEl.value = '';
+      titleEl.focus();
+    });
+
+    document.getElementById('taskTitle').addEventListener('keydown', (e)=>{
+      if(e.key==='Enter'){
+        document.getElementById('addBtn').click();
+      }
+    });
+
+    document.getElementById('searchInput').addEventListener('input', (e)=>{
+      setQuery(e.target.value);
+    });
+
+    document.getElementById('clearAllBtn').addEventListener('click', ()=>{
+      if(tasks.length===0) return;
+      if(confirm('Apagar TODAS as tarefas? Esta ação não pode ser desfeita.')){
+        tasks = [];
+        save(); render();
+      }
+    });
+
+    // Impressão
+    document.getElementById('printBtn').addEventListener('click', handlePrint);
+
+    // ======= Inicialização =======
+    load();
+    // Preencher a data de impressão com hoje
+    document.getElementById('printDate').value = formatDateISO(new Date());
+    render();
+  </script>
+</body>
+</html>
